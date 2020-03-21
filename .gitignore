@@ -1,0 +1,7 @@
+## Python
+# Compiled Python Stuff
+__pycache__
+*.pyc
+
+# Pickle data (daved models)
+*.pkl
