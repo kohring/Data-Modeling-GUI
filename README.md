@@ -12,4 +12,3 @@ With this application the user is able to load data, preprocess and explore it (
 
 ## Dependencies
 ...
-
