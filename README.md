@@ -1,4 +1,4 @@
-# DataModelingGUI
+# Data Modeling GUI
 Application for small data modeling tasks with GUI
 
 ![](sample_window.PNG?raw=true)

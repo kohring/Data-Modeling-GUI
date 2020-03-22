@@ -2,6 +2,7 @@
 # Compiled Python Stuff
 __pycache__
 *.pyc
+.vscode/
 
 # Pickle data (daved models)
 *.pkl
