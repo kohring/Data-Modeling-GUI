@@ -32,6 +32,7 @@ from pandastable import Table, TableModel
 import inspect
 import webbrowser
 
+
 __author__ = "Nils Kohring"
 __version__ = "0.0.1"
 
@@ -39,15 +40,13 @@ __version__ = "0.0.1"
 
 """
     TODO
-    - support for categorical data: use scikit ColumnTransfromer!!
-    - support for preprocessing
-    - support for saving
-        - proccesed data
-        - model
-    - support for classfication tasks
-    - some sort of plotting
+    - fix handeling of tuples as model parameters (see eg. for NNs)
+    - support for categorical data: use scikit ColumnTransfromer!
     - more models
-        - incl. real progressbars
+    - real progressbars
+    - where left off
+    - having multiple models at same time
+    - cross validation
 
 """
 
@@ -58,6 +57,7 @@ class MainWindow(Frame):
         self.master.title("Simple Data Modeling")
         self.createWidgets()
         self.model_loaded = False
+        self.header_bool = IntVar()
 
         # define model types (classification/regression)
         self.clas_models = {
@@ -105,12 +105,14 @@ class MainWindow(Frame):
 
     def readData_createWindow(self):
         try:
-            # filename = os.path.join(os.path.dirname(__file__), 'sample_data.csv')
-            # filename = filedialog.askopenfilename()
-            # f = open(self.filename, "rb")
-            f = 'http://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data'
-            self.data = pd.read_csv(f, header=None, sep=',')
-            self.data.columns = ['var' + str(i) for i in range(len(self.data.columns))]
+            filename = filedialog.askopenfilename()
+            f = open(filename, "rb")
+            # f = 'http://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data'
+            self.set_header(self.header_bool)
+            header = self.header_bool.get() == 1
+            self.data = pd.read_csv(f, header=0 if header else None, sep=',')
+            if not header:
+                self.data.columns = ['var' + str(i) for i in range(len(self.data.columns))]
         except AttributeError:
             pass
         except Exception as e:
@@ -139,7 +141,8 @@ class MainWindow(Frame):
                 b.grid(row=2+i, column=j)
         Label(self.master, text="").grid(row=height+2)
 
-        Separator(self.master, orient=HORIZONTAL).grid(row=height+3, columnspan=width, sticky="EW")
+        Separator(self.master, orient=HORIZONTAL).grid(row=height+3,
+        columnspan=max(width, 5), sticky="EW")
         Label(self.master, text="Data summary", font='Helvetica 10 bold') \
             .grid(row=height+4, columnspan=width)
         Label(self.master, text="Data size is {} bytes.".format(self.data.memory_usage(deep=True) \
@@ -160,7 +163,7 @@ class MainWindow(Frame):
                .grid(row=height+7, column=max(width-1, 4), columnspan=1)
 
         Separator(self.master, orient=HORIZONTAL).grid(row=height+9,
-        columnspan=width, sticky="EW")
+            columnspan=max(width, 5), sticky="EW")
         Label(self.master, text="Modeling", font='Helvetica 10 bold') \
             .grid(row=height+10, columnspan=width)
 
@@ -199,6 +202,30 @@ class MainWindow(Frame):
                .grid(row=height+14, column=0, columnspan=1)
         Button(self.master, text="Export Model", width=11, command=self.export_model) \
                .grid(row=height+14, column=1, columnspan=1)
+
+    def set_header(self, header_var):
+        """
+        User selection if data has a header as first row.
+        """
+        class popupWindow(object):
+            def __init__(self, master):
+                top = self.top = Toplevel(master)
+                top.title('Header')
+                top.attributes("-topmost", True)
+                top.geometry("300x65")
+                top.grid()
+                top.resizable(0, 0)
+                self.e = Checkbutton(top, text="Data contains header", variable=header_var,
+                    onvalue=1, offvalue=0)
+                self.e.grid(row=0, column=1, columnspan=1)
+                Button(top, text='     Ok     ', command=self.cleanup) \
+                    .grid(row=0, column=2, columnspan=1)
+                top.bind('<Return>', self.cleanup)
+            def cleanup(self, event=None):
+                self.top.destroy()
+
+        popup = popupWindow(self.master)
+        self.master.wait_window(popup.top)
 
     def setUpData(self):
         self.input_cols = list(np.arange(len(self.cols) - 1))
@@ -394,7 +421,7 @@ class MainWindow(Frame):
 
         return new_menu
 
-    def setModelType(self, model_index):
+    def setModelType(self, model_index, default_params=True):
         def _setModelType():
             if len(self.output_cols) == 0:
                 showerror("Error", "No output variable selected!")
@@ -433,13 +460,14 @@ class MainWindow(Frame):
             self.model_name = model_name
             self.model = model
 
-            # get default model parameters
-            signature = inspect.signature(model)
-            self.model_dict = {
-                k: v.default
-                for k, v in signature.parameters.items()
-                if v.default is not inspect.Parameter.empty
-            }
+            # get and set default model parameters
+            if default_params:
+                signature = inspect.signature(model)
+                self.model_dict = {
+                    k: v.default
+                    for k, v in signature.parameters.items()
+                    if v.default is not inspect.Parameter.empty
+                }
 
             # transformation for regression tasks
             if self.output_cols[0] in self.numeric_cols:
@@ -492,7 +520,9 @@ class MainWindow(Frame):
                     param_type = type(model_dict[k])
                     try:
                         value = self.values[i].get()
-                        if param_type is not type(None):
+                        if param_type in (type(tuple()), type(list())):
+                            model_dict[k] = eval(value)
+                        elif param_type is not type(None):
                             model_dict[k] = param_type(value)
                         elif value == 'True' or value == 'False':
                             model_dict[k] = bool(value)
@@ -515,7 +545,7 @@ class MainWindow(Frame):
                 start = model_class.find('\'') + 1
                 end = model_class.rfind('\'')
                 keyword = model_class[start:end]
-                keyword = keyword.replace('.', ' ')
+                keyword = keyword.replace('.', ' ').replace('_', ' ').replace('  ', ' ')
                 webbrowser.open('https://google.com/search?q=' + keyword)
 
         popup = popupWindow(self.master)
@@ -635,9 +665,15 @@ class MainWindow(Frame):
         plt.show()
 
     def shuffle_data(self):
+        """
+        Shuffle the rows of the data.
+        """
         self.data = self.data.sample(frac=1)
 
     def startModel(self):
+        """
+        Main action for trainig the selected model on the data.
+        """
         error_msg = ""
         if len(self.output_cols) != 1:
             error_msg += "  * There must be exactly one dependent variable.\n"
@@ -676,7 +712,7 @@ class MainWindow(Frame):
             model.fit(X_train, y_train)
         except ValueError as e:
             return showerror("Error", "Could not train the model (ValueError): {}".format(e))
-        except Exception:
+        except Exception as e:
             return showerror("Error", "Could not train the model: {}.".format(e))
 
         # make prediction
@@ -721,7 +757,7 @@ class MainWindow(Frame):
                 filetypes = [("default", "*.pkl")],
                 defaultextension = '.pkl'
             )
-            saving = (self.model_name, self.model_params, self.model,
+            saving = (self.model_name, self.model_dict, self.model,
                       self.model_int, self.metric_int)
             pickle.dump(saving, open(export_file_path, "wb"))
         except (AttributeError, FileNotFoundError):
@@ -735,10 +771,11 @@ class MainWindow(Frame):
                 filetypes = [("default", "*.pkl")],
                 defaultextension = '.pkl'
             )
-            self.model_name, self.model_params, self.model, self.model_int, \
+            self.model_name, self.model_dict, self.model, self.model_int, \
                 self.metric_int = pickle.load(open(filename, 'rb'))
+            
             self.model_loaded = True
-            self.setModelType(self.model_int)()
+            self.setModelType(self.model_int, default_params=False)()
             self.setMetricType(self.metric_int)()
         except FileNotFoundError:
             pass
