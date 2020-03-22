@@ -6,14 +6,14 @@ from tkinter.messagebox import showinfo, showerror
 from tkinter.ttk import Progressbar, Separator
 
 # sklearn imports
-from sklearn import linear_model
+import sklearn
 from sklearn import ensemble
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer, TransformedTargetRegressor
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler
 from sklearn.model_selection import train_test_split
-from sklearn import metrics
+from sklearn import metrics, gaussian_process, neural_network
 
 import xgboost as xgb
 
@@ -29,6 +29,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from PyQt5 import QtGui
 from pandastable import Table, TableModel
+import inspect
+import webbrowser
 
 __author__ = "Nils Kohring"
 __version__ = "0.0.1"
@@ -59,29 +61,18 @@ class MainWindow(Frame):
 
         # define model types (classification/regression)
         self.clas_models = {
-            'Random Forest Classifier': {
-                'model': ensemble.RandomForestClassifier,
-                'params': {
-                    'n_estimators': 100
-                }
-            },
-
+            'Decision Tree Classifier': sklearn.tree.DecisionTreeClassifier,
+            'Random Forest Classifier':  ensemble.RandomForestClassifier,
+            'Gradient Boosting Classifier': sklearn.ensemble.GradientBoostingClassifier
         }
         self.reg_models = {
-            'Linear Model': {
-                'model': linear_model.LinearRegression,
-                'params': {},
-            },
-            'XGB Regressor': {
-                'model': xgb.XGBRegressor,
-                'params': {
-                    'objective': "reg:linear",
-                    'max_depth': None,
-                    'learning_rate': None, 
-                    'n_estimators': 100
-                }
-            },
-
+            'Linear Model': sklearn.linear_model.LinearRegression,
+            'k-Nearest Neighbors Regression': sklearn.neighbors.KNeighborsRegressor,
+            'Decision Tree Regression':sklearn.tree.DecisionTreeRegressor,
+            'Gaussian Process Regression': gaussian_process.GaussianProcessRegressor,
+            'Neural Network': neural_network.MLPRegressor,
+            'Support Vector Regression':sklearn.svm.SVR,
+            'XGB Regressor': xgb.XGBRegressor,
         }
 
         # define metric types for evaluation (classification/regression)
@@ -104,7 +95,7 @@ class MainWindow(Frame):
         top["menu"] = self.menuBar
         self.subMenu = Menu(self.menuBar, tearoff=0)
         self.menuBar.add_cascade(label="File", menu=self.subMenu)
-        self.subMenu.add_command(label="New", command=self.readCSV)
+        self.subMenu.add_command(label="New", command=self.readData_createWindow)
         self.subMenu.add_command(label="Save As...", command=self.save)
         self.subMenu.add_command(label="Load Model", command=self.laod_model)
         self.subMenu.add_separator()
@@ -112,7 +103,7 @@ class MainWindow(Frame):
         self.subMenu.add_command(label="Help", command=self.help)
         self.menuBar.add_command(label="Quit", command=self.master.destroy)
 
-    def readCSV(self):
+    def readData_createWindow(self):
         try:
             # filename = os.path.join(os.path.dirname(__file__), 'sample_data.csv')
             # filename = filedialog.askopenfilename()
@@ -128,20 +119,19 @@ class MainWindow(Frame):
 
         self.cols = self.data.columns
         self.setUpData()
-        # self.colButtons = []
         self.bools = []
+
+        height = min(5, self.data.shape[0])
+        width = len(self.cols)
 
         Label(self.master, text="Head of data", font='Helvetica 10 bold') \
             .grid(row=0, columnspan=len(self.cols))
         for i, btn in enumerate(self.cols):
             new_btn = Menubutton(self.master, text=btn, width=11, relief='raised')
-            self.bools.append(self.initBools(5, trues=[0, 3] if i < len(self.cols)-1 else [1, 3]))
+            self.bools.append(self.initBools(5, trues=[0, 3] if i < width-1 else [1, 3]))
             self.setColSelection(new_btn, i)
-            # self.colButtons.append(new_btn)
             new_btn.grid(row=1, column=i, columnspan=1)
-
-        height = min(5, self.data.shape[0])
-        width = len(self.cols)
+        
         for i in range(height):
             for j in range(width):
                 b = Label(self.master, text=self.data[self.data.columns[j]][i],
@@ -163,11 +153,11 @@ class MainWindow(Frame):
               .grid(row=height+7, columnspan=width, sticky='W')
         Label(self.master, text="").grid(row=height+8)
         Button(self.master, text="Data", width=11, command=self.show_data) \
-               .grid(row=height+5, column=4, columnspan=1)
+               .grid(row=height+5, column=max(width-1, 4), columnspan=1)
         Button(self.master, text="Description", width=11, command=self.show_description) \
-               .grid(row=height+6, column=4, columnspan=1)
+               .grid(row=height+6, column=max(width-1, 4), columnspan=1)
         Button(self.master, text="Pair Plot", width=11, command=self.pair_plot) \
-               .grid(row=height+7, column=4, columnspan=1)
+               .grid(row=height+7, column=max(width-1, 4), columnspan=1)
 
         Separator(self.master, orient=HORIZONTAL).grid(row=height+9,
         columnspan=width, sticky="EW")
@@ -180,8 +170,10 @@ class MainWindow(Frame):
             self.master,
             value = str(np.round(self.train_test_ratio, 2))
         )
+        Button(self.master, text="Shuffle Data", width=11, command=self.shuffle_data) \
+               .grid(row=height+11, column=0, columnspan=1)
         Button(self.master, text="Train-Test Ratio", width=24, command=self.set_traintest) \
-               .grid(row=height+11, column=0, columnspan=2)
+               .grid(row=height+11, column=1, columnspan=2)
         Label(self.master, textvariable=self.train_test_ratio_str) \
                .grid(row=height+11, column=width-1, columnspan=1, sticky="E")
 
@@ -189,11 +181,11 @@ class MainWindow(Frame):
         self.model_btn = Menubutton(self.master, text="Model Type", width=11, relief='raised')
         self.set_model(self.model_btn)
         self.model_btn.grid(row=height+12, column=0, columnspan=1)
+        Button(self.master, text="Parameters", width=11, command=self.set_model_parameters) \
+               .grid(row=height+12, column=1, columnspan=1)
         self.metric_btn = Menubutton(self.master, text="Metric", width=11, relief='raised')
         self.set_metric(self.metric_btn)
-        self.metric_btn.grid(row=height+12, column=1, columnspan=1)
-        Button(self.master, text="Shuffle Data", width=11, command=self.shuffle_data) \
-               .grid(row=height+12, column=2, columnspan=1)
+        self.metric_btn.grid(row=height+12, column=2, columnspan=1)
 
         # model training
         self.score = -1
@@ -366,7 +358,7 @@ class MainWindow(Frame):
         btn["menu"] = new_menu
 
         self.model_selection_bool = self.initBools(
-            len(self.reg_models) + len(self.clas_models), trues=[0]
+            len(self.reg_models) + len(self.clas_models), trues=[]
         )
 
         for i, model in enumerate(self.reg_models.keys()):
@@ -374,9 +366,10 @@ class MainWindow(Frame):
                 variable=self.model_selection_bool[i])
         new_menu.add_separator()
         for i, model in enumerate(self.clas_models.keys()):
+            j = len(self.reg_models) + i
             new_menu.add_checkbutton(
-                label=model, command=self.setModelType(len(self.reg_models) + i),
-                variable=self.model_selection_bool[len(self.reg_models) + i]
+                label=model, command=self.setModelType(j),
+                variable = self.model_selection_bool[j]
             )
 
         return new_menu
@@ -386,7 +379,7 @@ class MainWindow(Frame):
         btn["menu"] = new_menu
 
         self.metric_selection_bool = self.initBools(
-            len(self.reg_metrics) + len(self.clas_metrics), trues=[0]
+            len(self.reg_metrics) + len(self.clas_metrics), trues=[]
         )
 
         for i, metric in enumerate(self.reg_metrics.keys()):
@@ -401,44 +394,170 @@ class MainWindow(Frame):
 
         return new_menu
 
-    def setModelType(self, i):
+    def setModelType(self, model_index):
         def _setModelType():
             if len(self.output_cols) == 0:
                 showerror("Error", "No output variable selected!")
             if self.output_cols[0] in self.numeric_cols:
-                if i >= len(self.reg_models): # regression
+                if model_index >= len(self.reg_models): # regression
                     for j in range(len(self.model_selection_bool)):
                         self.model_selection_bool[j].set(value=False)
                     return showerror("Error", "This model is for classification!")
             elif self.output_cols[0] in self.categorical_cols:
-                if i < len(self.reg_models):
+                if model_index < len(self.reg_models):
                     for j in range(len(self.model_selection_bool)):
                         self.model_selection_bool[j].set(value=False)
                     return showerror("Error", "This model is for regression!")
 
             for j in range(len(self.model_selection_bool)):
                 self.model_selection_bool[j].set(value=False)
-            self.model_selection_bool[i].set(value=True)
+            self.model_selection_bool[model_index].set(value=True)
+
+            # get selected model type
+            for i, b in enumerate(self.model_selection_bool):
+                if b.get():
+                    self.model_int = i
+
+            try:
+                if self.output_cols[0] in self.numeric_cols: # regression
+                    model = self.reg_models[list(self.reg_models.keys())[self.model_int]]
+                    model_name = list(self.reg_models.keys())[self.model_int]
+                elif self.output_cols[0] in self.categorical_cols: # classification
+                    model_int = self.model_int - len(self.reg_models)
+                    model = self.clas_models[list(self.clas_models.keys())[model_int]]
+                    model_name = list(self.clas_models.keys())[model_int]
+
+            except Exception as e:
+                return showerror("Error", "An appropriate model has to be selected: {}".format(e))
+
+            self.model_name = model_name
+            self.model = model
+
+            # get default model parameters
+            signature = inspect.signature(model)
+            self.model_dict = {
+                k: v.default
+                for k, v in signature.parameters.items()
+                if v.default is not inspect.Parameter.empty
+            }
+
+            # transformation for regression tasks
+            if self.output_cols[0] in self.numeric_cols:
+                def transformedTargetRegressor(**kwargs):
+                    return TransformedTargetRegressor(
+                            regressor = model(**kwargs),
+                            transformer = MinMaxScaler()
+                        )
+                model = transformedTargetRegressor
+
         return _setModelType
 
-    def setMetricType(self, i):
+    def set_model_parameters(self):
+        """
+        """
+        try:
+            model_name, model, model_dict = self.model_name, self.model, self.model_dict
+        except Exception as e:
+            return showerror("Error", "An model has to be selected first: {}".format(e))
+
+        class popupWindow(object):
+            def __init__(self, master):
+                top = self.top = Toplevel(master)
+                top.title("")
+                top.attributes("-topmost", True)
+                width = str(27 * (len(model_dict) + 2))
+                top.geometry("350x" + width)
+                top.grid()
+                top.resizable(0, 0)
+                Label(top, text='Parameters of ' + model_name) \
+                    .grid(row=0, column=0, columnspan=2)
+
+                self.values = list()
+                line = 1
+                for k, v in model_dict.items():
+                    Label(top, text=k).grid(row=line, column=0, columnspan=1, sticky='W')
+                    e = Entry(top)
+                    e.insert(END, str(v))
+                    e.grid(row=line, column=1, columnspan=1)
+                    self.values.append(e)
+                    line += 1
+
+                Button(top, text='  Help  ', command=self.help) \
+                    .grid(row=line+2, column=0, columnspan=1, sticky='W')
+                Button(top, text='   Ok   ', command=self.cleanup) \
+                    .grid(row=line+2, column=1, columnspan=1, sticky='E')
+                top.bind('<Return>', self.cleanup)
+            def cleanup(self, event=None):
+                for i, k in enumerate(model_dict.keys()):
+                    param_type = type(model_dict[k])
+                    try:
+                        value = self.values[i].get()
+                        if param_type is not type(None):
+                            model_dict[k] = param_type(value)
+                        elif value == 'True' or value == 'False':
+                            model_dict[k] = bool(value)
+                        else: # default might be NoneType which we don't want
+                            try:
+                                model_dict[k] = float(value)
+                            except:
+                                try:
+                                    model_dict[k] = int(value)
+                                except:
+                                    model_dict[k] = None
+                        self.model_dict = model_dict
+                    except Exception as e:
+                        showerror("Error", "The parameter type of {} is wrong: {}." \
+                            .format(k, type(e)))
+                
+                self.top.destroy()
+            def help(self, event=None):
+                model_class = str(model)
+                start = model_class.find('\'') + 1
+                end = model_class.rfind('\'')
+                keyword = model_class[start:end]
+                keyword = keyword.replace('.', ' ')
+                webbrowser.open('https://google.com/search?q=' + keyword)
+
+        popup = popupWindow(self.master)
+        self.master.wait_window(popup.top)
+        try:
+            self.model_dict = popup.model_dict
+        except AttributeError:
+            pass
+
+    def setMetricType(self, metric_index):
         def _setMetricType():
             if len(self.output_cols) == 0:
                 showerror("Error", "No output variable selected!")
             if self.output_cols[0] in self.numeric_cols:
-                if i >= len(self.reg_metrics): # regression
+                if metric_index >= len(self.reg_metrics): # regression
                     for j in range(len(self.metric_selection_bool)):
                         self.metric_selection_bool[j].set(value=False)
                     return showerror("Error", "This metric is for classification!")
             elif self.output_cols[0] in self.categorical_cols:
-                if i < len(self.reg_metrics):
+                if metric_index < len(self.reg_metrics):
                     for j in range(len(self.metric_selection_bool)):
                         self.metric_selection_bool[j].set(value=False)
                     return showerror("Error", "This metric is for regression!")
 
             for j in range(len(self.metric_selection_bool)):
                 self.metric_selection_bool[j].set(value=False)
-            self.metric_selection_bool[i].set(value=True)
+            self.metric_selection_bool[metric_index].set(value=True)
+
+            # get selected metric type
+            for i, b in enumerate(self.metric_selection_bool):
+                if b.get():
+                    self.metric_int = i
+
+            # set name and metric itself
+            if self.output_cols[0] in self.numeric_cols:
+                self.metric_name = list(self.reg_metrics.keys())[self.metric_int]
+                self.metric = self.reg_metrics[self.metric_name]
+            elif self.output_cols[0] in self.categorical_cols:
+                metric_int = self.metric_int - len(self.reg_metrics)
+                self.metric_name = list(self.clas_metrics.keys())[metric_int]
+                self.metric = self.clas_metrics[self.metric_name]
+
         return _setMetricType
 
     def show_data(self):
@@ -519,10 +638,17 @@ class MainWindow(Frame):
         self.data = self.data.sample(frac=1)
 
     def startModel(self):
+        error_msg = ""
         if len(self.output_cols) != 1:
-            showerror("Error", "There must be exactly one dependent variable!")
+            error_msg += "  * There must be exactly one dependent variable.\n"
         if len(self.input_cols) < 1:
-            showerror("Error", "There must be at least one independent variable!")
+            error_msg += "  * There must be at least one independent variable.\n"
+        if not hasattr(self, 'model'):
+            error_msg += "  * A model has to be selected.\n"
+        if not hasattr(self, 'metric_int'):
+            error_msg += "  * A metric has to be selected.\n"
+        if len(error_msg) > 0:
+            return showerror("Error", 'Model training failed!\n' + error_msg)
 
         # split data
         X_train, X_test, y_train, y_test = train_test_split(
@@ -530,40 +656,6 @@ class MainWindow(Frame):
             self.data[self.cols[self.output_cols]],
             test_size = self.train_test_ratio)
 
-        for i in self.model_selection_bool:
-            print(i.get())
-        print()
-    
-        # get selected model and metric type
-        for i, b in enumerate(self.model_selection_bool):
-            if b.get():
-                self.model_int = i
-        for i, b in enumerate(self.metric_selection_bool):
-            if b.get():
-                self.metric_int = i
-
-        if not self.model_loaded:
-            try:
-                if self.output_cols[0] in self.numeric_cols: # regression
-                    model_dict = self.reg_models[list(self.reg_models.keys())[self.model_int]]
-                    self.model_name = list(self.reg_models.keys())[self.model_int]
-                    def transformedTargetRegressor(**kwargs):
-                        return TransformedTargetRegressor(
-                                regressor = model_dict['model'](**kwargs),
-                                transformer = MinMaxScaler()
-                            )
-                    self.model = transformedTargetRegressor
-                    self.model_params = model_dict['params']
-
-                elif self.output_cols[0] in self.categorical_cols: # classification
-                    model_int = self.model_int - len(self.reg_models)
-                    model_dict = self.clas_models[list(self.clas_models.keys())[model_int]]
-                    self.model_name = list(self.clas_models.keys())[model_int]
-                    self.model = model_dict['model']
-                    self.model_params = model_dict['params']
-            except Exception as e:
-                return showerror("Error", "An appropriate model has to be selected: {}".format(e))
-            
         numeric_transformer = Pipeline(steps=[
             ('imputer', SimpleImputer(strategy='median')),
             ('scaler', StandardScaler())])
@@ -578,13 +670,14 @@ class MainWindow(Frame):
         ])
         
         model = Pipeline(steps=[('preprocessor', preprocessor),
-            ('model', Model(self.master, self.model, self.model_name, self.model_params))])
+            ('model', Model(self.master, self.model, self.model_name, self.model_dict))])
 
         try:
             model.fit(X_train, y_train)
-        except Exception as e:
-            return showerror("Error", "Could not train the model. Possible reasons for this " \
-                + "error include missing values or non-numeric features: {}".format(e))
+        except ValueError as e:
+            return showerror("Error", "Could not train the model (ValueError): {}".format(e))
+        except Exception:
+            return showerror("Error", "Could not train the model: {}.".format(e))
 
         # make prediction
         try:
@@ -594,14 +687,6 @@ class MainWindow(Frame):
             return showerror("Error", "Failed to calculate predictions: {}".format(e))
 
         # evaluate model
-        if self.output_cols[0] in self.numeric_cols:
-            self.metric_name = list(self.reg_metrics.keys())[self.metric_int]
-            self.metric = self.reg_metrics[self.metric_name]
-        elif self.output_cols[0] in self.categorical_cols:
-            metric_int = self.metric_int - len(self.reg_metrics)
-            self.metric_name = list(self.clas_metrics.keys())[metric_int]
-            self.metric = self.clas_metrics[self.metric_name]
-
         try:
             self.score = np.round(self.metric(y_test, y_pred), 4)
             showinfo("Result", "The model {} scored a {} of {} on the test data." \
