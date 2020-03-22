@@ -28,8 +28,9 @@ import ctypes
 import matplotlib.pyplot as plt
 import seaborn as sns
 from PyQt5 import QtGui
+from pandastable import Table, TableModel
 
-__authors__ = "Nils Kohring"
+__author__ = "Nils Kohring"
 __version__ = "0.0.1"
 
 
@@ -149,7 +150,7 @@ class MainWindow(Frame):
         Label(self.master, text="").grid(row=height+2)
 
         Separator(self.master, orient=HORIZONTAL).grid(row=height+3, columnspan=width, sticky="EW")
-        Label(self.master, text="Quick data summary", font='Helvetica 10 bold') \
+        Label(self.master, text="Data summary", font='Helvetica 10 bold') \
             .grid(row=height+4, columnspan=width)
         Label(self.master, text="Data size is {} bytes.".format(self.data.memory_usage(deep=True) \
               .sum())).grid(row=height+5, columnspan=width, sticky='W')
@@ -161,13 +162,19 @@ class MainWindow(Frame):
               "The data does not have missing values.") \
               .grid(row=height+7, columnspan=width, sticky='W')
         Label(self.master, text="").grid(row=height+8)
+        Button(self.master, text="Data", width=11, command=self.show_data) \
+               .grid(row=height+5, column=4, columnspan=1)
+        Button(self.master, text="Description", width=11, command=self.show_description) \
+               .grid(row=height+6, column=4, columnspan=1)
+        Button(self.master, text="Pair Plot", width=11, command=self.pair_plot) \
+               .grid(row=height+7, column=4, columnspan=1)
 
         Separator(self.master, orient=HORIZONTAL).grid(row=height+9,
         columnspan=width, sticky="EW")
         Label(self.master, text="Modeling", font='Helvetica 10 bold') \
             .grid(row=height+10, columnspan=width)
 
-        # Train / test ratio
+        # train / test ratio
         self.train_test_ratio = 1/3
         self.train_test_ratio_str = StringVar(
             self.master,
@@ -187,8 +194,6 @@ class MainWindow(Frame):
         self.metric_btn.grid(row=height+12, column=1, columnspan=1)
         Button(self.master, text="Shuffle Data", width=11, command=self.shuffle_data) \
                .grid(row=height+12, column=2, columnspan=1)
-        Button(self.master, text="Pair Plot", width=11, command=self.pair_plot) \
-               .grid(row=height+12, column=3, columnspan=1)
 
         # model training
         self.score = -1
@@ -319,7 +324,7 @@ class MainWindow(Frame):
 
     def help(self):
         showinfo("Information", "This Application is for small data modeling tasks.\n\n" \
-            + "Authors\t{}\nVersion\t{}".format(__authors__, __version__))
+            + "Authors\t{}\nVersion\t{}".format(__author__, __version__))
 
     def set_traintest(self):
 
@@ -337,21 +342,22 @@ class MainWindow(Frame):
                 self.e.grid(row=1, column=0, columnspan=5)
                 Button(top, text='     Ok     ', command=self.cleanup) \
                     .grid(row=1, column=5, columnspan=1)
-            def cleanup(self):
+                top.bind('<Return>', self.cleanup)
+            def cleanup(self, event=None):
                 self.value = self.e.get()
                 self.top.destroy()
-        
+
         popup = popupWindow(self.master)
         self.master.wait_window(popup.top)
         try:
             train_test_ratio = float(popup.value)
-        
             if train_test_ratio > 1 or train_test_ratio <= 0:
                 showerror("Error", "Train-Test ratio must be in (0,1]!")
             else:
                 self.train_test_ratio = train_test_ratio
             self.train_test_ratio_str.set(str(np.round(self.train_test_ratio, 2)))
-
+        except AttributeError:
+            pass
         except:
             showerror("Error", "Train-Test ratio must be a value in (0,1]!")
     
@@ -434,6 +440,45 @@ class MainWindow(Frame):
                 self.metric_selection_bool[j].set(value=False)
             self.metric_selection_bool[i].set(value=True)
         return _setMetricType
+
+    def show_data(self):
+        """
+        Opens a new window showing the data.
+        """
+        data = self.data
+
+        class DataFrame(Frame):
+            def __init__(self, master=None):
+                top = self.top = Toplevel(master)
+                top.attributes("-topmost", True)
+                top.geometry('600x720')
+                top.title('Data')
+                self.table = pt = Table(top, dataframe=data)
+                pt.show()
+                return
+
+        popup = DataFrame(self.master)
+        self.master.wait_window(popup.top)
+
+    def show_description(self):
+        """
+        Opens a new window showing the a description of the data.
+        """
+        data = self.data.describe()
+        data.reset_index(level=0, inplace=True)
+
+        class DataFrame(Frame):
+            def __init__(self, master=None):
+                top = self.top = Toplevel(master)
+                top.attributes("-topmost", True)
+                top.geometry('550x220')
+                top.title('Data Description')
+                self.table = pt = Table(top, dataframe=data)
+                pt.show()
+                return
+
+        popup = DataFrame(self.master)
+        self.master.wait_window(popup.top)
 
     def pair_plot(self, limit: int=50):
         """
@@ -594,7 +639,7 @@ class MainWindow(Frame):
             saving = (self.model_name, self.model_params, self.model,
                       self.model_int, self.metric_int)
             pickle.dump(saving, open(export_file_path, "wb"))
-        except AttributeError:
+        except (AttributeError, FileNotFoundError):
             pass
         except Exception as e:
             showerror("Error", "Failed to save model: {}.".format(e))
@@ -610,9 +655,10 @@ class MainWindow(Frame):
             self.model_loaded = True
             self.setModelType(self.model_int)()
             self.setMetricType(self.metric_int)()
+        except FileNotFoundError:
+            pass
         except Exception as e:
-            showerror("Error", "Failed to load model: {}.".format(e))
-
+            showerror("Error", "Data could not be saved: {}.".format(e))
 
 class Model():
     def __init__(
