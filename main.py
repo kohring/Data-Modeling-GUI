@@ -3,7 +3,7 @@
 from tkinter import *
 from tkinter import filedialog
 from tkinter.messagebox import showinfo, showerror
-from tkinter.ttk import Progressbar, Separator
+from tkinter.ttk import Progressbar, Separator, LabelFrame
 
 # sklearn imports
 import sklearn
@@ -126,82 +126,82 @@ class MainWindow(Frame):
         height = min(5, self.data.shape[0])
         width = len(self.cols)
 
-        Label(self.master, text="Head of data", font='Helvetica 10 bold') \
-            .grid(row=0, columnspan=len(self.cols))
+
+        # data frame
+        data_frame = LabelFrame(self.master, text="Data Summary", relief=RIDGE)
+        data_frame.grid(row=0, column=0, columnspan=5, sticky="EWNS", padx=15, pady=7.5)
+        data_size = "Data size is {} bytes. ".format(self.data.memory_usage(deep=True).sum())
+        cols_rows = "Number of columns is {} and the number of rows is {}. " \
+            .format(self.data.shape[1], self.data.shape[0])
+        miss_data = "The data does have missing values." if self.data.isnull().values.any() \
+            else "The data does not have missing values."
+        Message(data_frame, text=data_size + cols_rows + miss_data, width=315) \
+            .grid(row=0, column=0, columnspan=width, rowspan=3, sticky='W')
+        Button(data_frame, text="Data", width=12, command=self.show_data) \
+               .grid(row=0, column=4, columnspan=1)
+        Button(data_frame, text="Description", width=12, command=self.show_description) \
+               .grid(row=1, column=4, columnspan=1)
+        Button(data_frame, text="Pair Plot", width=12, command=self.pair_plot) \
+               .grid(row=2, column=4, columnspan=1)
+
+
+        # head frame
+        head_frame = LabelFrame(self.master, text="Head of data", relief=RIDGE)
+        head_frame.grid(row=5, column=0, columnspan=5, sticky="EWNS", padx=15, pady=7.5)
         for i, btn in enumerate(self.cols):
-            new_btn = Menubutton(self.master, text=btn, width=11, relief='raised')
+            new_btn = Menubutton(head_frame, text=btn, width=11, relief='raised')
             self.bools.append(self.initBools(5, trues=[0, 3] if i < width-1 else [1, 3]))
             self.setColSelection(new_btn, i)
-            new_btn.grid(row=1, column=i, columnspan=1)
-        
+            new_btn.grid(row=0, column=i, columnspan=1)
         for i in range(height):
             for j in range(width):
-                b = Label(self.master, text=self.data[self.data.columns[j]][i],
+                b = Label(head_frame, text=self.data[self.data.columns[j]][i],
                           width=12, relief="groove")
-                b.grid(row=2+i, column=j)
-        Label(self.master, text="").grid(row=height+2)
+                b.grid(row=1+i, column=j)
 
-        Separator(self.master, orient=HORIZONTAL).grid(row=height+3,
-        columnspan=max(width, 5), sticky="EW")
-        Label(self.master, text="Data summary", font='Helvetica 10 bold') \
-            .grid(row=height+4, columnspan=width)
-        Label(self.master, text="Data size is {} bytes.".format(self.data.memory_usage(deep=True) \
-              .sum())).grid(row=height+5, columnspan=width, sticky='W')
-        Label(self.master, text="Number of columns is {} and the number of rows is {}." \
-              .format(self.data.shape[1], self.data.shape[0])) \
-              .grid(row=height+6, columnspan=width, sticky='W')
-        Label(self.master, text="The data does have missing values." if \
-              self.data.isnull().values.any() else \
-              "The data does not have missing values.") \
-              .grid(row=height+7, columnspan=width, sticky='W')
-        Label(self.master, text="").grid(row=height+8)
-        Button(self.master, text="Data", width=11, command=self.show_data) \
-               .grid(row=height+5, column=max(width-1, 4), columnspan=1)
-        Button(self.master, text="Description", width=11, command=self.show_description) \
-               .grid(row=height+6, column=max(width-1, 4), columnspan=1)
-        Button(self.master, text="Pair Plot", width=11, command=self.pair_plot) \
-               .grid(row=height+7, column=max(width-1, 4), columnspan=1)
 
-        Separator(self.master, orient=HORIZONTAL).grid(row=height+9,
-            columnspan=max(width, 5), sticky="EW")
-        Label(self.master, text="Modeling", font='Helvetica 10 bold') \
-            .grid(row=height+10, columnspan=width)
-
+        # modeling frame
+        model_frame = LabelFrame(self.master, text="Modeling", relief=RIDGE)
+        model_frame.grid(row=height+11, column=0, columnspan=5, sticky="EWNS", padx=15, pady=7.5)
+        
         # train / test ratio
         self.train_test_ratio = 1/3
         self.train_test_ratio_str = StringVar(
             self.master,
             value = str(np.round(self.train_test_ratio, 2))
         )
-        Button(self.master, text="Shuffle Data", width=11, command=self.shuffle_data) \
-               .grid(row=height+11, column=0, columnspan=1)
-        Button(self.master, text="Train-Test Ratio", width=24, command=self.set_traintest) \
-               .grid(row=height+11, column=1, columnspan=2)
-        Label(self.master, textvariable=self.train_test_ratio_str) \
-               .grid(row=height+11, column=width-1, columnspan=1, sticky="E")
+        Button(model_frame, text="Shuffle Data", width=12, command=self.shuffle_data) \
+               .grid(row=0, column=0, columnspan=1)
+        Button(model_frame, text="Train-Test Ratio", width=24, command=self.set_traintest) \
+               .grid(row=0, column=1, columnspan=2)
+        Label(model_frame, textvariable=self.train_test_ratio_str) \
+               .grid(row=0, column=3, columnspan=1, sticky="E")
 
         # model selection
-        self.model_btn = Menubutton(self.master, text="Model Type", width=11, relief='raised')
+        self.model_btn = Menubutton(model_frame, text="Model Type", width=12, relief='raised')
         self.set_model(self.model_btn)
-        self.model_btn.grid(row=height+12, column=0, columnspan=1)
-        Button(self.master, text="Parameters", width=11, command=self.set_model_parameters) \
-               .grid(row=height+12, column=1, columnspan=1)
-        self.metric_btn = Menubutton(self.master, text="Metric", width=11, relief='raised')
+        self.model_btn.grid(row=1, column=0, columnspan=1)
+        Button(model_frame, text="Parameters", width=12, command=self.set_model_parameters) \
+               .grid(row=1, column=1, columnspan=1)
+        self.metric_btn = Menubutton(model_frame, text="Metric", width=12, relief='raised')
         self.set_metric(self.metric_btn)
-        self.metric_btn.grid(row=height+12, column=2, columnspan=1)
+        self.metric_btn.grid(row=1, column=2, columnspan=1)
 
         # model training
         self.score = -1
         self.score_str = StringVar(self.master, value="")
-        Button(self.master, text="Train Model", width=11, command=self.startModel) \
-               .grid(row=height+12, column=4, columnspan=width-1)
-        Label(self.master, textvariable=self.score_str) \
-               .grid(row=height+13, columnspan=width, sticky='W')
+        Button(model_frame, text="Train Model", width=12, command=self.startModel) \
+               .grid(row=1, column=3, columnspan=width-1)
+        Label(model_frame, textvariable=self.score_str) \
+               .grid(row=3, columnspan=width, sticky='W')
 
-        Button(self.master, text="Export Data", width=11, command=self.export_data) \
-               .grid(row=height+14, column=0, columnspan=1)
-        Button(self.master, text="Export Model", width=11, command=self.export_model) \
-               .grid(row=height+14, column=1, columnspan=1)
+        # Export Frame
+        export_frame = LabelFrame(self.master, text="Save", relief=RIDGE)
+        export_frame.grid(row=height+15, column=0, columnspan=5, sticky="EWNS", padx=15, pady=7.5)
+        Button(export_frame, text="Export Data", width=12, command=self.export_data) \
+               .grid(row=0, column=0, columnspan=1)
+        Button(export_frame, text="Export Model", width=12, command=self.export_model) \
+               .grid(row=0, column=1, columnspan=1)
 
     def set_header(self, header_var):
         """
@@ -844,9 +844,9 @@ class LoadingWindow():
 if __name__ == "__main__":
 
     root = Tk()
-    root.geometry("550x600")
+    root.geometry("475x565")
     root.iconbitmap(default=os.path.join(os.path.dirname(__file__), 'icon.ico'))
-    # root.resizable(0, 0) # Don't allow resizing in the x or y direction
+    root.resizable(0, 0) # Don't allow resizing in the x or y direction
     try: ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(" ")
     except: pass # set taskbar icon (only Windows support?)
 
