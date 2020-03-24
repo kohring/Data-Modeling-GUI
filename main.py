@@ -3,6 +3,7 @@
 from tkinter import *
 from tkinter import filedialog
 from tkinter.messagebox import showinfo, showerror
+import tkinter.ttk as ttk
 from tkinter.ttk import Progressbar, Separator, LabelFrame
 
 # sklearn imports
@@ -28,7 +29,8 @@ import ctypes
 import matplotlib.pyplot as plt
 import seaborn as sns
 from PyQt5 import QtGui
-from pandastable import Table, TableModel
+from pandastable import config, Table
+from custom_pandastable import CustomTable
 import inspect
 import webbrowser
 
@@ -105,10 +107,10 @@ class MainWindow(Frame):
 
     def readData_createWindow(self):
         try:
-            filename = filedialog.askopenfilename()
-            f = open(filename, "rb")
-            # f = 'http://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data'
-            self.set_header(self.header_bool)
+            # filename = filedialog.askopenfilename()
+            # f = open(filename, "rb")
+            # self.set_header(self.header_bool)
+            f = 'http://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data'
             header = self.header_bool.get() == 1
             self.data = pd.read_csv(f, header=0 if header else None, sep=',')
             if not header:
@@ -121,11 +123,10 @@ class MainWindow(Frame):
 
         self.cols = self.data.columns
         self.setUpData()
-        self.bools = []
+        self.bools = [] # variables for columns: first axis: which col; second axis: what type
 
         height = min(5, self.data.shape[0])
         width = len(self.cols)
-
 
         # data frame
         data_frame = LabelFrame(self.master, text="Data Summary", relief=RIDGE)
@@ -136,7 +137,7 @@ class MainWindow(Frame):
         miss_data = "The data does have missing values." if self.data.isnull().values.any() \
             else "The data does not have missing values."
         Message(data_frame, text=data_size + cols_rows + miss_data, width=315) \
-            .grid(row=0, column=0, columnspan=width, rowspan=3, sticky='W')
+            .grid(row=0, column=0, columnspan=width-1, rowspan=3, sticky='NW')
         Button(data_frame, text="Data", width=12, command=self.show_data) \
                .grid(row=0, column=4, columnspan=1)
         Button(data_frame, text="Description", width=12, command=self.show_description) \
@@ -147,17 +148,15 @@ class MainWindow(Frame):
 
         # head frame
         head_frame = LabelFrame(self.master, text="Head of data", relief=RIDGE)
-        head_frame.grid(row=5, column=0, columnspan=5, sticky="EWNS", padx=15, pady=7.5)
-        for i, btn in enumerate(self.cols):
-            new_btn = Menubutton(head_frame, text=btn, width=11, relief='raised')
+        head_frame.grid(row=5, column=0, columnspan=5, sticky="EWNS",
+            padx=15, pady=7.5)
+        
+        for i in range(len(self.cols)):
             self.bools.append(self.initBools(5, trues=[0, 3] if i < width-1 else [1, 3]))
-            self.setColSelection(new_btn, i)
-            new_btn.grid(row=0, column=i, columnspan=1)
-        for i in range(height):
-            for j in range(width):
-                b = Label(head_frame, text=self.data[self.data.columns[j]][i],
-                          width=12, relief="groove")
-                b.grid(row=1+i, column=j)
+        table = CustomTable(main_window=self, parent=head_frame, dataframe=self.data.head(),
+                      editable=False, width=1, height=120)
+        config.apply_options({'fontsize': 10}, table)
+        table.show()
 
 
         # modeling frame
@@ -602,7 +601,8 @@ class MainWindow(Frame):
                 top.attributes("-topmost", True)
                 top.geometry('600x720')
                 top.title('Data')
-                self.table = pt = Table(top, dataframe=data)
+                self.table = pt = Table(top, dataframe=data, editable=False,
+                                        enable_menus=False)
                 pt.show()
                 return
 
