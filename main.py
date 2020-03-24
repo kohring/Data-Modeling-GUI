@@ -132,19 +132,20 @@ class MainWindow(Frame):
         # data frame
         data_frame = LabelFrame(self.master, text="Data Summary", relief=RIDGE)
         data_frame.grid(row=0, column=0, columnspan=5, sticky="EWNS", padx=15, pady=7.5)
-        data_size = "Data size is {} bytes. ".format(self.data.memory_usage(deep=True).sum())
-        cols_rows = "Number of columns is {} and the number of rows is {}. " \
+        data_size = "Data size is {} kilobytes. " \
+            .format(np.round(self.data.memory_usage(deep=False).sum() / 1000, 2))
+        cols_rows = "The number of columns is {} and the number of rows is {}. " \
             .format(self.data.shape[1], self.data.shape[0])
         miss_data = "The data does have missing values." if self.data.isnull().values.any() \
             else "The data does not have missing values."
         Message(data_frame, text=data_size + cols_rows + miss_data, width=315) \
             .grid(row=0, column=0, columnspan=width-1, rowspan=3, sticky='NW')
-        Button(data_frame, text="Data", width=12, command=self.show_data) \
-               .grid(row=0, column=4, columnspan=1)
-        Button(data_frame, text="Description", width=12, command=self.show_description) \
-               .grid(row=1, column=4, columnspan=1)
-        Button(data_frame, text="Pair Plot", width=12, command=self.pair_plot) \
-               .grid(row=2, column=4, columnspan=1)
+        Button(data_frame, text="Data", width=13, command=self.show_data) \
+               .grid(row=0, column=4, columnspan=1, padx=4, pady=4)
+        Button(data_frame, text="Description", width=13, command=self.show_description) \
+               .grid(row=1, column=4, columnspan=1, padx=4, pady=0)
+        Button(data_frame, text="Pair Plot", width=13, command=self.pair_plot) \
+               .grid(row=2, column=4, columnspan=1, padx=4, pady=4)
 
 
         # head frame
@@ -155,7 +156,7 @@ class MainWindow(Frame):
         for i in range(len(self.cols)):
             self.bools.append(self.initBools(5, trues=[0, 3] if i < width-1 else [1, 3]))
         table = CustomTable(main_window=self, parent=head_frame, dataframe=self.data.head(),
-                      editable=False, width=1, height=120)
+                            editable=False, width=1, height=120)
         config.apply_options({'fontsize': 10}, table)
         table.show()
 
@@ -170,18 +171,19 @@ class MainWindow(Frame):
             self.master,
             value = str(np.round(self.train_test_ratio, 2))
         )
-        Button(model_frame, text="Shuffle Data", width=12, command=self.shuffle_data) \
+        Button(model_frame, text="Shuffle Data", width=13, command=self.shuffle_data) \
                .grid(row=0, column=0, columnspan=1)
-        Button(model_frame, text="TrainTest Ratio", width=12, command=self.set_traintest) \
+        Button(model_frame, text="TrainTest Ratio", width=13, command=self.set_traintest) \
                .grid(row=0, column=2, columnspan=1)
         Label(model_frame, textvariable=self.train_test_ratio_str) \
                .grid(row=0, column=3, columnspan=1, sticky="E")
 
         # model selection
+        ttk.Style().configure("TMenubutton", background="#E1E1E1")
         self.model_btn = Menubutton(model_frame, text="Model Type", width=9)
         self.set_model(self.model_btn)
         self.model_btn.grid(row=1, column=0, columnspan=1)
-        Button(model_frame, text="Parameters", width=12, command=self.set_model_parameters) \
+        Button(model_frame, text="Parameters", width=13, command=self.set_model_parameters) \
                .grid(row=1, column=1, columnspan=1)
         self.metric_btn = Menubutton(model_frame, text="Metric", width=9)
         self.set_metric(self.metric_btn)
@@ -190,7 +192,7 @@ class MainWindow(Frame):
         # model training
         self.score = -1
         self.score_str = StringVar(self.master, value="")
-        Button(model_frame, text="Train Model", width=12, command=self.startModel) \
+        Button(model_frame, text="Train Model", width=13, command=self.startModel) \
                .grid(row=1, column=3, columnspan=width-1)
         Label(model_frame, textvariable=self.score_str) \
                .grid(row=3, columnspan=width, sticky='W')
@@ -198,10 +200,10 @@ class MainWindow(Frame):
         # Export Frame
         export_frame = LabelFrame(self.master, text="Save", relief=RIDGE)
         export_frame.grid(row=height+15, column=0, columnspan=5, sticky="EWNS", padx=15, pady=7.5)
-        Button(export_frame, text="Export Data", width=12, command=self.export_data) \
-               .grid(row=0, column=0, columnspan=1)
-        Button(export_frame, text="Export Model", width=12, command=self.export_model) \
-               .grid(row=0, column=1, columnspan=1)
+        Button(export_frame, text="Export Data", width=13, command=self.export_data) \
+               .grid(row=0, column=0, columnspan=1, padx=4, pady=4)
+        Button(export_frame, text="Export Model", width=13, command=self.export_model) \
+               .grid(row=0, column=1, columnspan=1, padx=0, pady=4)
 
     def set_header(self, header_var):
         """
@@ -346,21 +348,26 @@ class MainWindow(Frame):
             + "Authors\t{}\nVersion\t{}".format(__author__, __version__))
 
     def set_traintest(self):
+        train_test_ratio = self.train_test_ratio_str.get()
 
         class popupWindow(object):
             def __init__(self, master):
                 top = self.top = Toplevel(master)
                 top.title('Train-Test Ratio')
                 top.attributes("-topmost", True)
-                top.geometry("350x75")
+                top.geometry("350x80")
                 top.grid()
                 top.resizable(0, 0)
+
                 Label(top, text="Enter the ratio of training set " \
-                    + "size to test set size:").grid(row=0, columnspan=6)
+                    + "size to test set size:").grid(row=0, columnspan=6,
+                    sticky='nesw', padx=15, pady=7.5)
                 self.e = Entry(top)
-                self.e.grid(row=1, column=0, columnspan=5)
+                self.e.insert(END, str(train_test_ratio))
+                self.e.grid(row=1, column=0, columnspan=5, sticky='w',
+                            padx=15)
                 Button(top, text='     Ok     ', command=self.cleanup) \
-                    .grid(row=1, column=5, columnspan=1)
+                    .grid(row=1, column=5, columnspan=1, sticky='e', padx=15)
                 top.bind('<Return>', self.cleanup)
             def cleanup(self, event=None):
                 self.value = self.e.get()
@@ -493,8 +500,8 @@ class MainWindow(Frame):
                 top = self.top = Toplevel(master)
                 top.title("Parameters")
                 top.attributes("-topmost", True)
-                width = str(25 * (len(model_dict) + 4))
-                top.geometry("300x" + width)
+                width = str(26 * (len(model_dict) + 4))
+                top.geometry("310x" + width)
                 top.grid()
                 top.resizable(0, 0)
 
@@ -505,18 +512,17 @@ class MainWindow(Frame):
                 line = 1
                 for k, v in model_dict.items():
                     Label(frame, text=k, width=20) \
-                        .grid(row=line, column=0, columnspan=1, sticky='W')
+                        .grid(row=line, column=0, columnspan=1, sticky='W', padx=4, pady=1)
                     e = Entry(frame, width=10)
                     e.insert(END, str(v))
-                    e.grid(row=line, column=1, columnspan=1, sticky='E')
+                    e.grid(row=line, column=1, columnspan=1, sticky='E', padx=6, pady=1)
                     self.values.append(e)
                     line += 1
 
-                Label(frame, text="").grid(row=line+2, column=0)
                 Button(frame, text='  Help  ', command=self.help) \
-                    .grid(row=line+3, column=0, columnspan=1, sticky='W')
+                    .grid(row=line+2, column=0, columnspan=1, sticky='W', padx=4, pady=4)
                 Button(frame, text='   Ok   ', command=self.cleanup) \
-                    .grid(row=line+3, column=1, columnspan=1, sticky='E')
+                    .grid(row=line+2, column=1, columnspan=1, sticky='E', padx=4, pady=4)
                 top.bind('<Return>', self.cleanup)
             def cleanup(self, event=None):
                 for i, k in enumerate(model_dict.keys()):
@@ -619,6 +625,7 @@ class MainWindow(Frame):
         """
         data = self.data.describe()
         data.reset_index(level=0, inplace=True)
+        data.rename(columns={"index": ""}, inplace=True)
 
         class DataFrame(Frame):
             def __init__(self, master=None):
@@ -849,7 +856,7 @@ class LoadingWindow():
 if __name__ == "__main__":
 
     root = Tk()
-    root.geometry("475x565")
+    root.geometry("485x565")
     root.iconbitmap(default=os.path.join(os.path.dirname(__file__), 'icon.ico'))
     root.resizable(0, 0) # Don't allow resizing in the x or y direction
     try: ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(" ")

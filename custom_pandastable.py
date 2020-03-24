@@ -12,6 +12,9 @@ from pandastable.dialogs import *
 
 
 class CustomColumnHeader(ColumnHeader):
+    """
+    Custom pandastable.ColumnHeader which has custom options for the columns.
+    """
     def __init__(self, parent=None, main_window=None, table=None, bg='gray25'):
         ColumnHeader.__init__(self, parent=parent, table=table, bg=bg)
         self.main_window = main_window
