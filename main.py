@@ -4,7 +4,9 @@ from tkinter import *
 from tkinter import filedialog
 from tkinter.messagebox import showinfo, showerror
 import tkinter.ttk as ttk
-from tkinter.ttk import Progressbar, Separator, LabelFrame
+from tkinter.ttk import (
+    Button, Label, Menubutton, Progressbar, Separator, LabelFrame
+)
 
 # sklearn imports
 import sklearn
@@ -42,7 +44,6 @@ __version__ = "0.0.1"
 
 """
     TODO
-    - fix handeling of tuples as model parameters (see eg. for NNs)
     - support for categorical data: use scikit ColumnTransfromer!
     - more models
     - real progressbars
@@ -171,18 +172,18 @@ class MainWindow(Frame):
         )
         Button(model_frame, text="Shuffle Data", width=12, command=self.shuffle_data) \
                .grid(row=0, column=0, columnspan=1)
-        Button(model_frame, text="Train-Test Ratio", width=24, command=self.set_traintest) \
-               .grid(row=0, column=1, columnspan=2)
+        Button(model_frame, text="TrainTest Ratio", width=12, command=self.set_traintest) \
+               .grid(row=0, column=2, columnspan=1)
         Label(model_frame, textvariable=self.train_test_ratio_str) \
                .grid(row=0, column=3, columnspan=1, sticky="E")
 
         # model selection
-        self.model_btn = Menubutton(model_frame, text="Model Type", width=12, relief='raised')
+        self.model_btn = Menubutton(model_frame, text="Model Type", width=9)
         self.set_model(self.model_btn)
         self.model_btn.grid(row=1, column=0, columnspan=1)
         Button(model_frame, text="Parameters", width=12, command=self.set_model_parameters) \
                .grid(row=1, column=1, columnspan=1)
-        self.metric_btn = Menubutton(model_frame, text="Metric", width=12, relief='raised')
+        self.metric_btn = Menubutton(model_frame, text="Metric", width=9)
         self.set_metric(self.metric_btn)
         self.metric_btn.grid(row=1, column=2, columnspan=1)
 
@@ -490,29 +491,32 @@ class MainWindow(Frame):
         class popupWindow(object):
             def __init__(self, master):
                 top = self.top = Toplevel(master)
-                top.title("")
+                top.title("Parameters")
                 top.attributes("-topmost", True)
-                width = str(27 * (len(model_dict) + 2))
-                top.geometry("350x" + width)
+                width = str(25 * (len(model_dict) + 4))
+                top.geometry("300x" + width)
                 top.grid()
                 top.resizable(0, 0)
-                Label(top, text='Parameters of ' + model_name) \
-                    .grid(row=0, column=0, columnspan=2)
+
+                frame = LabelFrame(top, text=model_name, relief=RIDGE, width=260)
+                frame.grid(row=0, column=0, columnspan=2, sticky="EWNS", padx=15, pady=15)
 
                 self.values = list()
                 line = 1
                 for k, v in model_dict.items():
-                    Label(top, text=k).grid(row=line, column=0, columnspan=1, sticky='W')
-                    e = Entry(top)
+                    Label(frame, text=k, width=20) \
+                        .grid(row=line, column=0, columnspan=1, sticky='W')
+                    e = Entry(frame, width=10)
                     e.insert(END, str(v))
-                    e.grid(row=line, column=1, columnspan=1)
+                    e.grid(row=line, column=1, columnspan=1, sticky='E')
                     self.values.append(e)
                     line += 1
 
-                Button(top, text='  Help  ', command=self.help) \
-                    .grid(row=line+2, column=0, columnspan=1, sticky='W')
-                Button(top, text='   Ok   ', command=self.cleanup) \
-                    .grid(row=line+2, column=1, columnspan=1, sticky='E')
+                Label(frame, text="").grid(row=line+2, column=0)
+                Button(frame, text='  Help  ', command=self.help) \
+                    .grid(row=line+3, column=0, columnspan=1, sticky='W')
+                Button(frame, text='   Ok   ', command=self.cleanup) \
+                    .grid(row=line+3, column=1, columnspan=1, sticky='E')
                 top.bind('<Return>', self.cleanup)
             def cleanup(self, event=None):
                 for i, k in enumerate(model_dict.keys()):
@@ -622,7 +626,8 @@ class MainWindow(Frame):
                 top.attributes("-topmost", True)
                 top.geometry('550x220')
                 top.title('Data Description')
-                self.table = pt = Table(top, dataframe=data)
+                self.table = pt = Table(top, dataframe=data, editable=False,
+                                        enable_menus=False)
                 pt.show()
                 return
 
