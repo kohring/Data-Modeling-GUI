@@ -47,10 +47,11 @@ __version__ = "0.0.1"
     - support for categorical data: use scikit ColumnTransfromer!
     - more models
     - real progressbars
+      (https://stackoverflow.com/questions/15323574/how-to-connect-a-progress-bar-to-a-function)
     - where left off
     - having multiple models at same time
     - cross validation
-
+    - fix bug for model paramters: when default was None, str input is just ignored
 """
 
 class MainWindow(Frame):
@@ -99,19 +100,18 @@ class MainWindow(Frame):
         self.subMenu = Menu(self.menuBar, tearoff=0)
         self.menuBar.add_cascade(label="File", menu=self.subMenu)
         self.subMenu.add_command(label="New", command=self.readData_createWindow)
-        self.subMenu.add_command(label="Save As...", command=self.save)
         self.subMenu.add_command(label="Load Model", command=self.laod_model)
         self.subMenu.add_separator()
-        self.subMenu.add_command(label="Properties", command=self.properties)
         self.subMenu.add_command(label="Help", command=self.help)
+        self.subMenu.add_command(label="About", command=self.about)
         self.menuBar.add_command(label="Quit", command=self.master.destroy)
 
     def readData_createWindow(self):
         try:
-            # filename = filedialog.askopenfilename()
-            # f = open(filename, "rb")
-            # self.set_header(self.header_bool)
-            f = 'http://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data'
+            filename = filedialog.askopenfilename()
+            f = open(filename, "rb")
+            self.set_header(self.header_bool)
+            # f = 'http://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data'
             header = self.header_bool.get() == 1
             self.data = pd.read_csv(f, header=0 if header else None, sep=',')
             if not header:
@@ -138,7 +138,7 @@ class MainWindow(Frame):
             .format(self.data.shape[1], self.data.shape[0])
         miss_data = "The data does have missing values." if self.data.isnull().values.any() \
             else "The data does not have missing values."
-        Message(data_frame, text=data_size + cols_rows + miss_data, width=315) \
+        Message(data_frame, text=data_size + cols_rows + miss_data, width=335) \
             .grid(row=0, column=0, columnspan=width-1, rowspan=3, sticky='NW')
         Button(data_frame, text="Data", width=13, command=self.show_data) \
                .grid(row=0, column=4, columnspan=1, padx=4, pady=4)
@@ -180,14 +180,14 @@ class MainWindow(Frame):
 
         # model selection
         ttk.Style().configure("TMenubutton", background="#E1E1E1")
-        self.model_btn = Menubutton(model_frame, text="Model Type", width=9)
+        self.model_btn = Menubutton(model_frame, text="Model", width=9)
         self.set_model(self.model_btn)
-        self.model_btn.grid(row=1, column=0, columnspan=1)
+        self.model_btn.grid(row=1, column=0, columnspan=1, padx=0, pady=4)
         Button(model_frame, text="Parameters", width=13, command=self.set_model_parameters) \
-               .grid(row=1, column=1, columnspan=1)
+               .grid(row=1, column=1, columnspan=1, padx=0, pady=4)
         self.metric_btn = Menubutton(model_frame, text="Metric", width=9)
         self.set_metric(self.metric_btn)
-        self.metric_btn.grid(row=1, column=2, columnspan=1)
+        self.metric_btn.grid(row=1, column=2, columnspan=1, padx=0, pady=4)
 
         # model training
         self.score = -1
@@ -337,15 +337,23 @@ class MainWindow(Frame):
         return _setCat
     ### ------------------------------ ###
 
-    def save(self):
-        pass
-
     def properties(self):
         pass
 
     def help(self):
-        showinfo("Information", "This Application is for small data modeling tasks.\n\n" \
-            + "Authors\t{}\nVersion\t{}".format(__author__, __version__))
+        instructions = "Instructions\n" \
+            + "1) Load your data which is formated as csv file.\n" \
+            + "2) Make sure loading worked by checking the displayed ´Head of Data´\n" \
+                + "    or pressing the ´Data´ button to see the whole dataset.\n" \
+            + "3) In the ´Head of Data´ press the column names to change their type" \
+                + "      and to select the output feature.\n" \
+            + "4) Select your appropriate model and change its parameters if needed.\n" \
+            + "5) Save your predictions and model.\n"
+        showinfo("Information", instructions)
+
+    def about(self):
+        showinfo("About", "This Application is for small data modeling tasks.\n\n" \
+            + "Author\t{}\nVersion\t{}".format(__author__, __version__))
 
     def set_traintest(self):
         train_test_ratio = self.train_test_ratio_str.get()
@@ -682,6 +690,25 @@ class MainWindow(Frame):
         """
         self.data = self.data.sample(frac=1)
 
+        class Notification(Frame):
+            def __init__(self, master=None):
+                top = self.top = Toplevel(master)
+                top.attributes("-topmost", True)
+                window_height = 75
+                window_width = 225
+                screen_width = top.winfo_screenwidth()
+                screen_height = top.winfo_screenheight()
+                x_cordinate = int((screen_width/2) - (window_width/2))
+                y_cordinate = int((screen_height/2) - (window_height/2))
+                top.geometry("{}x{}+{}+{}".format(window_width, window_height,
+                                                  x_cordinate, y_cordinate))
+                top.title('')
+                Label(top, text="\nShuffeld\n", anchor=CENTER).pack()
+                return
+
+        popup = Notification(self.master)
+        self.after(500, lambda: popup.top.destroy())
+
     def startModel(self):
         """
         Main action for trainig the selected model on the data.
@@ -822,22 +849,29 @@ class Model():
 
 class LoadingWindow():
     def __init__(self, master, model_name):
-        self.window = Toplevel()
+        self.window = window = Toplevel()
         self.model_name = model_name
-        self.window.title("Training {} Model".format(self.model_name))
-        self.window.attributes("-topmost", True)
-        self.window.geometry("500x75")
-        self.window.grid()
-        self.window.resizable(0, 0)
-        Label(self.window, text="").grid(row=0, column=0, sticky='N')
-        Label(self.window, text="        Training Progress  ") \
+        window.title("Training {} Model".format(self.model_name))
+        window.attributes("-topmost", True)
+        window_height = 75
+        window_width = 500
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        x_cordinate = int((screen_width/2) - (window_width/2))
+        y_cordinate = int((screen_height/2) - (window_height/2))
+        window.geometry("{}x{}+{}+{}".format(window_width, window_height,
+                                            x_cordinate, y_cordinate))
+        window.grid()
+        window.resizable(0, 0)
+        Label(window, text="").grid(row=0, column=0, sticky='N')
+        Label(window, text="        Training Progress  ") \
             .grid(row=1, column=0, sticky='N')
         self.progress_var = DoubleVar(0)
         self.progressbar = Progressbar(self.window, variable=self.progress_var,
                                        orient="horizontal", length=300,
                                        mode="determinate",  maximum=100)
         self.progressbar.grid(row=1, column=1, sticky='N')
-        self.window.pack_slaves()
+        window.pack_slaves()
 
     def progress(self):
         if self.progressbar["value"] < 100:
@@ -856,7 +890,7 @@ class LoadingWindow():
 if __name__ == "__main__":
 
     root = Tk()
-    root.geometry("485x565")
+    root.geometry("490x575")
     root.iconbitmap(default=os.path.join(os.path.dirname(__file__), 'icon.ico'))
     root.resizable(0, 0) # Don't allow resizing in the x or y direction
     try: ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(" ")
