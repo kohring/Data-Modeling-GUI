@@ -28,7 +28,21 @@ Regressors
 * XGB Regressor
 
 ## Possible Future Features 
-...
+Better support for categorical data: use scikit ColumnTransfromer! Include more models, add a real progressbars, and add cross validation.
 
 ## Dependencies
-...
+The following packes are required
+* `tkinter`
+* `sklearn`
+* `xgboost`
+* `numpy`
+* `pandas`
+* `pickle`
+* `ctypes`
+* `matplotlib`
+* `seaborn`
+* `pandastable`
+* `inspect`
+* `webbrowser`
+
+# Feedback is appreciated!
