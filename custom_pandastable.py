@@ -10,6 +10,12 @@ from pandastable.headers import ColumnHeader, RowHeader, IndexHeader
 from pandastable import images, util, config
 from pandastable.dialogs import *
 
+"""
+Based on: Farrell, D 2016 DataExplore: An Application for General Data Analysis
+in Research and Education. Journal of Open Research Software, 4: e9, DOI:
+http://dx.doi.org/10.5334/jors.94.
+"""
+
 
 class CustomColumnHeader(ColumnHeader):
     """
